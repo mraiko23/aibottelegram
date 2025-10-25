@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <!-- Auth Container -->
+    <div id="authContainer" class="auth-container">
+        <div class="auth-card">
+            <h1 class="logo">AI Chat</h1>
+            <p class="subtitle">Общайтесь с передовыми AI моделями бесплатно</p>
+            
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <h2>Вход</h2>
+                <div class="input-group">
+                    <input type="text" id="loginUsername" placeholder="Имя пользователя" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="loginPassword" placeholder="Пароль" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Войти</button>
+                <p class="switch-form">Нет аккаунта? <a href="#" id="showRegister">Зарегистрироваться</a></p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form hidden">
+                <h2>Регистрация</h2>
+                <div class="input-group">
+                    <input type="text" id="registerUsername" placeholder="Имя пользователя" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="registerPassword" placeholder="Пароль" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="registerConfirmPassword" placeholder="Подтвердите пароль" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+                <p class="switch-form">Уже есть аккаунт? <a href="#" id="showLogin">Войти</a></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chat Container -->
+    <div id="chatContainer" class="chat-container hidden">
+        <!-- Header -->
+        <header class="chat-header">
+            <div class="header-left">
+                <button id="toggleChatSidebarBtn" class="btn-icon mobile-only" title="Список чатов">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z"/>
+                    </svg>
+                </button>
+                <button id="toggleModelSidebarBtn" class="btn-icon mobile-only" title="Выбор модели">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 0l3 6h7l-5.5 4 2 7L10 13l-6.5 4 2-7L0 6h7z"/>
+                    </svg>
+                </button>
+                <h1 class="logo-small">AI Chat</h1>
+            </div>
+            <div class="header-right">
+                <button id="showApiBtn" class="btn btn-api" title="API ключ">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0a4 4 0 0 0-4 4v1H3a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V4a4 4 0 0 0-4-4zm2 5V4a2 2 0 1 0-4 0v1h4z"/>
+                    </svg>
+                    API
+                </button>
+                <span id="userInfo" class="user-info"></span>
+                <button id="logoutBtn" class="btn btn-secondary">Выход</button>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <div class="chat-main">
+            <!-- Chat Management Sidebar -->
+            <aside class="chat-sidebar">
+                <div class="chat-sidebar-header">
+                    <h3>💬 Чаты</h3>
+                    <button id="newChatBtn" class="btn-icon" title="Новый чат">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 0a1 1 0 0 1 1 1v8h8a1 1 0 1 1 0 2h-8v8a1 1 0 1 1-2 0v-8H1a1 1 0 0 1 0-2h8V1a1 1 0 0 1 1-1z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div id="chatList" class="chat-list">
+                    <!-- Chat items will be dynamically inserted here -->
+                </div>
+            </aside>
+
+            <!-- Model Sidebar -->
+            <aside class="sidebar">
+                <h3 class="sidebar-title">Выберите AI модель</h3>
+                <div class="model-list">
+                    <button class="model-btn active" data-model="gpt-5">
+                        <div class="model-icon">🚀</div>
+                        <div class="model-info">
+                            <div class="model-name">GPT-5</div>
+                            <div class="model-desc">OpenAI (Newest)</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="gpt-5-pro">
+                        <div class="model-icon">⚡</div>
+                        <div class="model-info">
+                            <div class="model-name">GPT-5 Pro</div>
+                            <div class="model-desc">OpenAI Advanced</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="claude-sonnet-4">
+                        <div class="model-icon">🧠</div>
+                        <div class="model-info">
+                            <div class="model-name">Claude Sonnet 4</div>
+                            <div class="model-desc">Anthropic (Latest)</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="claude-3.7-sonnet">
+                        <div class="model-icon">💫</div>
+                        <div class="model-info">
+                            <div class="model-name">Claude 3.7 Sonnet</div>
+                            <div class="model-desc">Anthropic Fast</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="gemini-2.5-pro">
+                        <div class="model-icon">💎</div>
+                        <div class="model-info">
+                            <div class="model-name">Gemini 2.5 Pro</div>
+                            <div class="model-desc">Google (Pro)</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="gemini-2.5-flash">
+                        <div class="model-icon">⚡</div>
+                        <div class="model-info">
+                            <div class="model-name">Gemini 2.5 Flash</div>
+                            <div class="model-desc">Google Fast</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="deepseek-r1">
+                        <div class="model-icon">🔬</div>
+                        <div class="model-info">
+                            <div class="model-name">DeepSeek R1</div>
+                            <div class="model-desc">DeepSeek Reasoning</div>
+                        </div>
+                    </button>
+                    <button class="model-btn" data-model="deepseek-chat">
+                        <div class="model-icon">💬</div>
+                        <div class="model-info">
+                            <div class="model-name">DeepSeek Chat</div>
+                            <div class="model-desc">DeepSeek Fast</div>
+                        </div>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Chat Content -->
+            <div class="chat-content">
+                <div id="messagesContainer" class="messages-container">
+                    <div class="welcome-message">
+                        <h2>Добро пожаловать в AI Chat!</h2>
+                        <p>Выберите модель слева и начните общение с искусственным интеллектом</p>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="input-area">
+                    <div id="filePreview" class="file-preview"></div>
+                    <div class="input-wrapper">
+                        <input type="file" id="fileInput" multiple style="display: none;" accept="*/*">
+                        <button id="attachBtn" class="btn btn-attach" title="Прикрепить файл">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10 0a1 1 0 0 1 1 1v8h8a1 1 0 1 1 0 2h-8v8a1 1 0 1 1-2 0v-8H1a1 1 0 0 1 0-2h8V1a1 1 0 0 1 1-1z"/>
+                            </svg>
+                        </button>
+                        <textarea id="messageInput" placeholder="Введите сообщение..." rows="1"></textarea>
+                        <button id="sendBtn" class="btn btn-send">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="current-model">
+                        <span>Текущая модель: <strong id="currentModelName">GPT-5</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="apiModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔑 API Ключ для интеграции</h2>
+                <button id="closeModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">Используйте этот API ключ для интеграции AI моделей в ваши приложения</p>
+                
+                <div class="api-key-section">
+                    <input type="text" id="apiKeyDisplay" readonly class="api-key-input">
+                    <div class="api-key-actions">
+                        <button id="copyApiBtn" class="btn btn-primary">📋 Копировать</button>
+                        <button id="regenerateApiBtn" class="btn btn-secondary">🔄 Создать новый</button>
+                    </div>
+                </div>
+                <div class="api-docs">
+                    <h3>📖 Пример использования</h3>
+                    <div class="code-block">
+                        <pre><code>curl -X POST https://api.aichat.com/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'</code></pre>
+                    </div>
+                    <div class="api-features">
+                        <h4>✨ Доступные функции:</h4>
+                        <ul>
+                            <li>✅ Бесплатный доступ ко всем AI моделям (GPT-5, Claude Sonnet 4, Gemini 2.5 Pro, DeepSeek R1 и др.)</li>
+                            <li>✅ Поддержка файлов и мультимодальности</li>
+                            <li>✅ История разговоров и контекст</li>
+                            <li>✅ Без лимитов на количество запросов</li>
+                            <li>✅ 8+ новейших AI моделей в одном месте</li>
+                        </ul>
+                        <div style="background: rgba(99, 102, 241, 0.1); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                            <p style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">
+                                🎉 <strong>Все модели полностью бесплатны!</strong> Приложение использует Clacky AI Proxy для доступа к новейшим AI моделям без ограничений.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="auth.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
