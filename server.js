@@ -809,7 +809,7 @@ const verifyApiKey = async (req, res, next) => {
 // Public API: Chat completions (OpenAI compatible)
 app.post('/api/v1/chat/completions', verifyApiKey, async (req, res) => {
     try {
-        const { messages, model = 'gpt-5', temperature = 0.7, max_tokens = 2000 } = req.body;
+        const { messages, model = 'gpt-5', temperature = 0.7, max_tokens = 30000 } = req.body;
         
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             return res.status(400).json({ 

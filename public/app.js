@@ -127,10 +127,11 @@ class ChatApp {
                 try {
                     const title = `💬 Новый чат ${Object.keys(this.chats).length + 1}`;
                     console.log('Creating new chat:', title);
-                    this.currentChatId = await this.createNewChat(title);
-                    if (this.currentChatId) {
-                        console.log('Chat created:', this.currentChatId);
-                        await this.loadChat(this.currentChatId);
+                    const newChatId = await this.createNewChat(title);
+                    if (newChatId) {
+                        console.log('Chat created:', newChatId);
+                        // Сначала загрузить новый чат, только потом изменить currentChatId
+                        await this.loadChat(newChatId);
                         this.renderChatList();
                         this.showToast('Чат успешно создан', 'success');
                     } else {
@@ -396,8 +397,15 @@ class ChatApp {
         // Prepare conversation history
         const conversationHistory = [];
         
-        // Add previous messages (text only)
-        for (const msg of this.messages.slice(-10)) {
+        // Add system message with current date/time and search capabilities
+        const systemMessage = this.getSystemMessage();
+        conversationHistory.push({
+            role: 'system',
+            content: systemMessage
+        });
+        
+        // Add previous messages (text only) - skip the last one as it will be added separately
+        for (const msg of this.messages.slice(-10, -1)) {
             if (msg.files && msg.files.length > 0) {
                 // Skip file content in history to save tokens
                 conversationHistory.push({
@@ -410,6 +418,15 @@ class ChatApp {
                     content: msg.text
                 });
             }
+        }
+        
+        // Add current user message
+        const currentMsg = this.messages[this.messages.length - 1];
+        if (currentMsg && currentMsg.type === 'user') {
+            conversationHistory.push({
+                role: 'user',
+                content: currentMsg.text
+            });
         }
         
         // If files are attached to current message, handle them
@@ -491,7 +508,7 @@ class ChatApp {
                 model: modelId,
                 messages: conversationHistory,
                 temperature: 0.7,
-                max_tokens: 2000
+                max_tokens: 30000
             })
         });
         
@@ -530,6 +547,13 @@ class ChatApp {
         if (!storedKey) return null;
         
         const conversationHistory = [];
+        
+        // Add system message with current date/time
+        const systemMessage = this.getSystemMessage();
+        conversationHistory.push({
+            role: 'system',
+            content: systemMessage
+        });
         
         // Add previous messages
         for (const msg of this.messages.slice(-10)) {
@@ -596,7 +620,7 @@ class ChatApp {
                 model: this.getOpenRouterModelId(this.currentModel),
                 messages: conversationHistory,
                 temperature: 0.7,
-                max_tokens: 2000
+                max_tokens: 30000
             })
         });
         
@@ -902,11 +926,23 @@ class ChatApp {
             content.appendChild(filesDiv);
         }
         
-        // Add text
+        // Add text with markdown support
         if (text) {
             const text_div = document.createElement('div');
             text_div.className = 'message-text';
-            text_div.textContent = text;
+            
+            // For AI messages, parse markdown and apply syntax highlighting
+            if (type === 'ai') {
+                text_div.innerHTML = this.parseMarkdown(text);
+                // Apply syntax highlighting to code blocks
+                text_div.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } else {
+                // For user messages, keep as plain text
+                text_div.textContent = text;
+            }
+            
             content.appendChild(text_div);
         }
         
@@ -917,7 +953,7 @@ class ChatApp {
             const img = document.createElement('img');
             img.src = imageUrl;
             img.alt = 'Generated Image';
-            img.style.cssText = 'max-width: 100%; border-radius: 8px; margin-top: 0.5rem; cursor: pointer;';
+            img.style.cursor = 'pointer';
             img.onclick = () => window.open(imageUrl, '_blank');
             imageDiv.appendChild(img);
             content.appendChild(imageDiv);
@@ -932,7 +968,6 @@ class ChatApp {
             video.controls = true;
             video.autoplay = false;
             video.loop = true;
-            video.style.cssText = 'max-width: 100%; border-radius: 8px; margin-top: 0.5rem;';
             videoDiv.appendChild(video);
             
             const downloadBtn = document.createElement('a');
@@ -954,21 +989,24 @@ class ChatApp {
             // Copy button for user messages
             const copyBtn = document.createElement('button');
             copyBtn.className = 'message-action-btn copy';
-            copyBtn.innerHTML = '📋 Копировать';
+            copyBtn.innerHTML = '📋';
+            copyBtn.title = 'Копировать';
             copyBtn.onclick = () => this.copyMessageText(text);
             actionsDiv.appendChild(copyBtn);
         } else if (type === 'ai') {
             // Copy button for AI messages
             const copyBtn = document.createElement('button');
             copyBtn.className = 'message-action-btn copy';
-            copyBtn.innerHTML = '📋 Копировать';
+            copyBtn.innerHTML = '📋';
+            copyBtn.title = 'Копировать';
             copyBtn.onclick = () => this.copyMessageText(text);
             actionsDiv.appendChild(copyBtn);
             
             // Regenerate button for AI messages
             const regenBtn = document.createElement('button');
             regenBtn.className = 'message-action-btn regenerate';
-            regenBtn.innerHTML = '🔄 Перегенерировать';
+            regenBtn.innerHTML = '🔄';
+            regenBtn.title = 'Перегенерировать';
             regenBtn.onclick = () => this.regenerateResponse();
             actionsDiv.appendChild(regenBtn);
         }
@@ -1084,6 +1122,120 @@ class ChatApp {
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+    
+    // Parse markdown text with code highlighting
+    parseMarkdown(text) {
+        if (!text) return '';
+        
+        // Configure marked options
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,
+                gfm: true
+            });
+            
+            // Custom renderer for code blocks
+            const renderer = new marked.Renderer();
+            const originalCode = renderer.code.bind(renderer);
+            
+            renderer.code = (code, language) => {
+                const validLanguage = language || 'text';
+                const copyId = 'copy-' + Math.random().toString(36).substr(2, 9);
+                
+                return `
+                    <div class="code-block-wrapper">
+                        <div class="code-block-header">
+                            <span class="code-language">${validLanguage}</span>
+                            <button class="code-copy-btn" onclick="window.chatApp.copyCode('${copyId}')" title="Копировать код">
+                                <span>📋</span>
+                                <span class="copy-text">Копировать</span>
+                            </button>
+                        </div>
+                        <div class="code-block-content">
+                            <pre><code id="${copyId}" class="language-${validLanguage}">${this.escapeHtml(code)}</code></pre>
+                        </div>
+                    </div>
+                `;
+            };
+            
+            marked.use({ renderer });
+            
+            try {
+                return marked.parse(text);
+            } catch (e) {
+                console.error('Markdown parsing error:', e);
+                return text.replace(/\n/g, '<br>');
+            }
+        }
+        
+        // Fallback if marked is not loaded
+        return text.replace(/\n/g, '<br>');
+    }
+    
+    // Escape HTML to prevent XSS
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Get system message with current date/time and search capabilities
+    getSystemMessage() {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('ru-RU', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const timeStr = now.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZoneName: 'short'
+        });
+        
+        return `You are a helpful AI assistant with access to real-time information.
+
+Current date and time: ${dateStr}, ${timeStr}
+Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+
+When users ask about:
+- Current time, date, or day of the week - use the information provided above
+- Recent events, news, or current information - acknowledge that you have knowledge cutoff but provide the most recent information you have
+- Weather, stock prices, or other real-time data - explain that you don't have direct access to this data but can provide general information
+
+Always be helpful, accurate, and honest about your capabilities and limitations.`;
+    }
+    
+    // Copy code from code block
+    copyCode(codeId) {
+        const codeElement = document.getElementById(codeId);
+        if (!codeElement) return;
+        
+        const code = codeElement.textContent;
+        
+        navigator.clipboard.writeText(code).then(() => {
+            // Find the button
+            const wrapper = codeElement.closest('.code-block-wrapper');
+            const btn = wrapper.querySelector('.code-copy-btn');
+            const copyText = btn.querySelector('.copy-text');
+            
+            // Update button state
+            btn.classList.add('copied');
+            copyText.textContent = 'Скопировано';
+            
+            // Reset after 2 seconds
+            setTimeout(() => {
+                btn.classList.remove('copied');
+                copyText.textContent = 'Копировать';
+            }, 2000);
+            
+            this.showToast('Код скопирован', 'success', null, 2000);
+        }).catch(err => {
+            console.error('Failed to copy code:', err);
+            this.showToast('Ошибка копирования', 'error');
+        });
     }
     
     // Copy message text to clipboard
@@ -1421,18 +1573,21 @@ class ChatApp {
         }
         
         console.log('[LOAD] Loading chat:', chatId);
+        console.log('[LOAD] Current chat BEFORE switch:', this.currentChatId);
+        console.log('[LOAD] Current messages count BEFORE switch:', this.messages.length);
         
-        // Save current chat before switching
-        // ⚠️ ВАЖНО: Не сохраняем, если this.messages пустой - это может стереть реальные сообщения!
-        if (this.currentChatId && this.chats[this.currentChatId] && this.messages.length > 0) {
-            console.log('[LOAD] Saving current chat before switch:', this.currentChatId);
-            this.chats[this.currentChatId].messages = this.messages;
-            this.chats[this.currentChatId].model = this.currentModel;
-            await this.updateChat(this.currentChatId, {
+        // Save current chat before switching (use OLD currentChatId)
+        const oldChatId = this.currentChatId;
+        if (oldChatId && oldChatId !== chatId && this.chats[oldChatId] && this.messages.length > 0) {
+            console.log('[LOAD] Saving OLD chat before switch:', oldChatId, 'with', this.messages.length, 'messages');
+            this.chats[oldChatId].messages = this.messages;
+            this.chats[oldChatId].model = this.currentModel;
+            await this.updateChat(oldChatId, {
                 messages: this.messages,
                 model: this.currentModel
             });
-        } else if (this.currentChatId) {
+            console.log('[LOAD] ✅ Old chat saved successfully');
+        } else if (oldChatId && oldChatId !== chatId) {
             console.log('[LOAD] Skipping save - messages array is empty, would erase data!');
         }
         
