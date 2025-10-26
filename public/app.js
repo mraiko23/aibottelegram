@@ -1131,6 +1131,10 @@ class ChatApp {
     parseMarkdown(text) {
         if (!text) return '';
         
+        // Pre-process: Wrap code-like blocks that aren't in markdown
+        // Обнаруживаем блоки кода без markdown оформления
+        text = this.autoDetectCodeBlocks(text);
+        
         // Configure marked options
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -1142,8 +1146,13 @@ class ChatApp {
             const renderer = new marked.Renderer();
             const originalCode = renderer.code.bind(renderer);
             
+            // Custom inline code renderer
+            renderer.codespan = (code) => {
+                return `<code class="inline-code">${this.escapeHtml(code)}</code>`;
+            };
+            
             renderer.code = (code, language) => {
-                const validLanguage = language || 'text';
+                const validLanguage = language || 'plaintext';
                 const copyId = 'copy-' + Math.random().toString(36).substr(2, 9);
                 
                 return `
@@ -1174,6 +1183,125 @@ class ChatApp {
         
         // Fallback if marked is not loaded
         return text.replace(/\n/g, '<br>');
+    }
+    
+    // Auto-detect and wrap code blocks that aren't in markdown format
+    autoDetectCodeBlocks(text) {
+        // Разбиваем текст на блоки, сохраняя существующие markdown блоки
+        const lines = text.split('\n');
+        const result = [];
+        let inMarkdownBlock = false;
+        let inCodeBlock = false;
+        let codeBuffer = [];
+        let codeLanguage = null;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            
+            // Проверяем markdown блоки
+            if (trimmed.startsWith('```')) {
+                inMarkdownBlock = !inMarkdownBlock;
+                result.push(line);
+                continue;
+            }
+            
+            // Если мы в markdown блоке, просто добавляем
+            if (inMarkdownBlock) {
+                result.push(line);
+                continue;
+            }
+            
+            // Автоопределение кода: признаки кодовой строки
+            const isCodeLine = this.looksLikeCode(line);
+            
+            if (isCodeLine && !inCodeBlock) {
+                // Начало кодового блока
+                inCodeBlock = true;
+                codeLanguage = this.detectLanguage(line);
+                codeBuffer = [line];
+            } else if (inCodeBlock && (isCodeLine || trimmed === '')) {
+                // Продолжение кодового блока (или пустая строка внутри)
+                codeBuffer.push(line);
+            } else if (inCodeBlock && !isCodeLine) {
+                // Конец кодового блока
+                if (codeBuffer.length >= 2) { // Минимум 2 строки для блока
+                    result.push('```' + codeLanguage);
+                    result.push(...codeBuffer);
+                    result.push('```');
+                } else {
+                    result.push(...codeBuffer);
+                }
+                codeBuffer = [];
+                inCodeBlock = false;
+                codeLanguage = null;
+                result.push(line);
+            } else {
+                // Обычная строка
+                result.push(line);
+            }
+        }
+        
+        // Закрываем оставшийся кодовый блок
+        if (inCodeBlock && codeBuffer.length >= 2) {
+            result.push('```' + codeLanguage);
+            result.push(...codeBuffer);
+            result.push('```');
+        } else if (codeBuffer.length > 0) {
+            result.push(...codeBuffer);
+        }
+        
+        return result.join('\n');
+    }
+    
+    // Check if a line looks like code
+    looksLikeCode(line) {
+        const trimmed = line.trim();
+        if (trimmed === '') return false;
+        
+        // Признаки кода
+        const codePatterns = [
+            /^(function|const|let|var|class|import|export|from|def|public|private|protected)\s/,
+            /^(if|else|for|while|switch|case|return|break|continue)\s*[\(\{]/,
+            /[\{\}\[\];]/,  // Скобки и точка с запятой
+            /^\s{4,}/, // Сильный отступ
+            /^\t/, // Табуляция
+            /=>|===|!==|&&|\|\|/, // Операторы JS
+            /\w+\([^)]*\)\s*\{/, // Функции
+            /^<\w+[^>]*>/, // HTML теги
+            /^#include|^using namespace/, // C/C++
+            /@Override|@Autowired/, // Java annotations
+        ];
+        
+        return codePatterns.some(pattern => pattern.test(trimmed));
+    }
+    
+    // Detect programming language from code
+    detectLanguage(line) {
+        const trimmed = line.trim().toLowerCase();
+        
+        // JavaScript/TypeScript
+        if (/\b(const|let|var|function|=>|import.*from)\b/.test(trimmed)) return 'javascript';
+        
+        // Python
+        if (/^(def|class|import|from.*import|if __name__)/.test(trimmed)) return 'python';
+        
+        // HTML
+        if (/^<!DOCTYPE|^<html|^<div|^<span/.test(trimmed)) return 'html';
+        
+        // CSS
+        if (/\{$|^\.|^#\w+\s*\{/.test(trimmed)) return 'css';
+        
+        // Java
+        if (/^(public|private|protected)\s+(class|interface|enum)/.test(trimmed)) return 'java';
+        
+        // C/C++
+        if (/^#include|^using namespace/.test(trimmed)) return 'cpp';
+        
+        // SQL
+        if (/^(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP)\b/i.test(trimmed)) return 'sql';
+        
+        return 'plaintext';
     }
     
     // Escape HTML to prevent XSS

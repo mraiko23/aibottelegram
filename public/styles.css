@@ -468,12 +468,15 @@ body {
     white-space: pre;
 }
 
-.message-text :not(pre) > code {
+.message-text :not(pre) > code,
+.inline-code {
     background: var(--bg-tertiary);
     color: var(--accent-color);
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-size: 0.9em;
+    border: 1px solid var(--border-color);
+    font-weight: 500;
 }
 
 /* Markdown elements */
