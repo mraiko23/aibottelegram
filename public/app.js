@@ -755,31 +755,34 @@ class ChatApp {
     detectRequestType(message) {
         const lowerMessage = message.toLowerCase();
         
-        // Image generation keywords
-        const imageKeywords = [
-            'сгенерируй', 'сгенерируйте', 'нарисуй', 'нарисуйте',
-            'создай картинку', 'создай изображение',
-            'generate image', 'create image', 'draw', 'make picture',
-            'картинку', 'изображение', 'фото'
-        ];
-        
-        // Video generation keywords
+        // Video generation keywords (check first - most specific)
         const videoKeywords = [
-            'сгенерируй видео', 'создай видео',
-            'generate video', 'create video', 'make video',
-            'видео', 'ролик'
+            'сгенерируй видео', 'создай видео', 'сделай видео',
+            'generate video', 'create video', 'make video'
         ];
         
-        // Check for video keywords first (more specific)
+        // Check for video keywords first
         for (const keyword of videoKeywords) {
             if (lowerMessage.includes(keyword)) {
                 return 'video';
             }
         }
         
-        // Check for image keywords
-        for (const keyword of imageKeywords) {
-            if (lowerMessage.includes(keyword)) {
+        // Image generation patterns - require explicit image/picture words
+        const imagePatterns = [
+            // Русский язык - требуем явное упоминание картинки/изображения
+            /\b(сгенерируй|сгенерируйте|нарисуй|нарисуйте|создай|создайте|сделай|сделайте)\s+(картинку|изображение|рисунок|фото|арт)/i,
+            // Или отдельное слово "нарисуй" (всегда про изображение)
+            /\b(нарисуй|нарисуйте|draw)\b/i,
+            // English - require explicit image/picture words
+            /\b(generate|create|make|draw)\s+(image|picture|photo|art|illustration)/i,
+            // Standalone image words in context
+            /\b(картинку|изображение)\b/i
+        ];
+        
+        // Check for image patterns
+        for (const pattern of imagePatterns) {
+            if (pattern.test(lowerMessage)) {
                 return 'image';
             }
         }
